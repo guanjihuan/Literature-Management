@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>文献管理</title>
+    <!-- perf:移除 Inter 外链 — 远程 stylesheet 是 FCP 硬阻塞,离线/慢网时整页白屏。
+         系统 sans (Segoe UI / SF Pro / PingFang) 视觉差异小,降级可接受。
+         背景色与 BrowserWindow backgroundColor 对齐 (#07080A,即 globals.css :root
+         的 --bg-canvas-rgb),避免首屏黑闪。
+         V1.5 (2026-09-02):暗色为默认,boot 直接走暗色,零 class 闪烁。
+         audit r29 (2026-09-21):hex 与 @shared/types BOOT_CANVAS_HEX_DARK 对齐,
+         index.html 是静态 HTML 不能直接 import TS 常量,这里同步字面量,
+         改色时三处(window.ts / index.html / globals.css :root.dark)必须同步。 -->
+    <style>
+      html, body { background: #07080A; color-scheme: dark; }
+    </style>
+    <!-- audit round 14 (2026-09-15):CSP-001 — Content-Security-Policy meta tag
+         作 defense-in-depth。即使 markdown-it / highlight.js / 未来依赖
+         regression 让 inline `<script>` 绕过 markdown-html-sanitize,CSP
+         仍挡住 script 执行。`frame-src 'self' rkms:` 配合 RKMS-001 是
+         rkms:// iframe 唯一加载通道;`object-src 'none'` 挡 Flash / Java
+         等老式 plugin;`base-uri 'none'` 防 <base> 标签劫持相对 URL。
+         不加 `unsafe-eval` / `unsafe-inline`(script-src 严格 self)。
+         注:`frame-ancestors` 已从本 meta 移除 —— 它只在**响应头**里生效,
+         放在 <meta> 里 Chromium 直接忽略,并每次启动打一条 error
+         ("directive 'frame-ancestors' is ignored when delivered via a
+         <meta> element")。防护未丢:改由主进程给**应用主文档**注入 CSP
+         响应头承担,见 src/main/document-csp.ts。 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' rkms:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' rkms: data:; media-src 'self' rkms:; object-src 'none'; frame-src 'self' rkms:; connect-src 'self' rkms:; base-uri 'none'; form-action 'none';"
+    />
+  </head>
+  <body>
+    <!-- Skip Link:Tab 首次聚焦显示,跳到主内容区(满足 WCAG 2.4.1)。
+         audit round 13 (2026-09-15):i18n-001 — 之前硬编码中文 "跳到主内容",
+         en-US 用户首次 Tab 焦点听到不熟悉的文字,会跳过 skip link 直接进 chrome
+         (WCAG 2.4.1 失效)。这里保留中文作 zh-CN 兜底默认;en-US 在 App.tsx
+         mount 后用 useTranslation 改写文字(避免与 i18next 实例化 race)。
+         skip-link CSS 在 globals.css 里把焦点态设为可见,平时视觉隐藏。 -->
+    <a href="#main-content" data-skip-link class="skip-link">跳到主内容</a>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

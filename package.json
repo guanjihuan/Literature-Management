@@ -1,0 +1,133 @@
+{
+  "name": "research-knowledge-management-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地优先的文献管理桌面应用 —— 论文库 + 笔记 + 收藏",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "node scripts/start.cjs dev",
+    "predev": "node scripts/start.cjs verify-abi",
+    "build": "node scripts/start.cjs build",
+    "start": "node scripts/start.cjs start",
+    "rebuild:native": "node scripts/rebuild-native.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
+    "test": "node scripts/run-tests.cjs",
+    "test:run": "node scripts/run-tests.cjs run",
+    "test:watch": "node scripts/run-tests.cjs watch",
+    "test:coverage": "node scripts/run-tests.cjs run --coverage",
+    "dev:clean": "node -e \"const fs=require('fs');for(const p of ['node_modules/.vite','node_modules/.vite-temp']){try{fs.rmSync(p,{recursive:true,force:true});console.log('removed',p)}catch(e){console.log('skip',p,e.message)}}\"",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild": "electron-rebuild",
+    "prepare": "husky || true"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{md,json,css}": [
+      "prettier --write"
+    ]
+  },
+  "build": {
+    "appId": "com.researchhub.rkms",
+    "productName": "Literature Management",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "icon.ico",
+      "!**/*.map"
+    ],
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Education"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "engines": {
+    "node": ">=20.16.0 <25"
+  },
+  "dependencies": {
+    "better-sqlite3": "12.11.1",
+    "chokidar": "^4.0.1",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@lezer/highlight": "^1.2.3",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.16.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "autoprefixer": "^10.4.20",
+    "electron": "^30.5.0",
+    "electron-builder": "^25.0.0",
+    "electron-vite": "^2.3.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "highlight.js": "^11.10.0",
+    "husky": "^9.1.7",
+    "i18next": "^26.3.6",
+    "jsdom": "^26.0.0",
+    "lint-staged": "^17.3.0",
+    "lucide-react": "^0.453.0",
+    "markdown-it": "^14.3.1",
+    "memfs": "^4.63.0",
+    "postcss": "^8.4.0",
+    "prettier": "^3.3.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-i18next": "^17.0.11",
+    "react-virtuoso": "^4.18.12",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.25.76",
+    "zustand": "^4.5.0"
+  }
+}

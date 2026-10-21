@@ -1,0 +1,1663 @@
+@import '../components/reader/reader.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   主题变量 — 单一真实来源
+   暗色为默认(VSCode / Linear 风格)— :root 直接定义;浅色通过 .light 选择器覆盖。
+   切换时仅需在 <html> 上增删 .light 类 (见 lib/theme: applyTheme)。
+   颜色采用 RGB 通道格式 (R G B) 以便 Tailwind opacity 修饰符 (bg-danger/10) 生效。
+
+   重构 (2026-09-02 V1.5):默认改为暗色(配合用户偏好)。
+     - :root = 暗色配方,直接生效,无 .dark class 也走暗色
+     - .light = 显式浅色配方,选 light 主题时挂上
+     - 节省首屏 className 闪烁;settings.theme 默认值仍 'dark'
+   ============================================================ */
+
+/* ============================================================
+   设计 token 参考 — 改任何 chrome/原子前先看这里(2026-09-04 V1.8 Linear 重设)
+
+   === 颜色(RGB 通道 — 走 Tailwind bg-fg/10 透明度)===
+     bg.*       层级:canvas < bg < surface < raised < hover < active < selected
+                V1.8 关键修正:每档差 ~10 灰度(V1.7 只差 ~6-8 导致眼睛分不清层次)
+                canvas  应用最外层画布   (#07080A 暗 / #FAFAFA 浅)  纯黑画布,无 radial
+                bg      主区内容层        (#111216 暗,跟 canvas 差 10,清晰主区)
+                surface 面板/侧栏         (#1A1B1F 暗,中性 — Linear 风不带蓝调)
+                raised  头部/floating      (#232429 暗,比 surface 抬 ~9 灰度,浮起清晰)
+                hover   行/按钮 hover     (#2E2E34 暗,比 raised 抬 ~11,hover 反馈清晰)
+                active  segmented 选中     (#383940 暗)
+                selected 紫调选中          (#21243A 暗 / #E8EAFD 浅)
+     fg.*       4 级灰阶:fg > fg-secondary > fg-tertiary > fg-muted
+                V1.8 primary 提到 #F0F2F5,Windows 暗底下中文边缘更锐利
+                ratio 已按 WCAG AA 在 #111216 背景校准,别动
+     accent.*   主紫蓝 #5E6AD2(Linear 招牌);选中/focus/链接 ——
+                浅色配方与之同色,深色配方 V1.7 也切到紫蓝(之前是 VSCode 蓝)
+     success/warning/danger  状态色
+     module.library/notes    模块语义色(青/赭石)
+
+   === 圆角(rounded-* 等价 px)===
+     rounded-none 0    rounded-sm 2       rounded 4
+     rounded-md 6       rounded-lg 8       rounded-xl 12      rounded-2xl 16
+     rounded-full 9999(进度条/小圆点)
+     用法:
+       - 按钮 / 输入 / 芯片 → rounded (4px,VSCode 风)
+       - 列表行 / 卡片     → rounded-md (6px)
+       - 面板 / 模态      → rounded-md (6px,跨面板一致,避免"边角变胖")
+       - hero / empty 大盒 → rounded-xl/2xl
+
+   === chrome 高度(走 CSS 变量 — tailwind.config 映射)===
+     h-titlebar  36px    应用标题栏(预留系统拖拽区)
+     h-statusbar 24px    状态栏底部
+     h-tabs     35px     多 tab 编辑器顶
+     用法:<header className="h-statusbar">,不要写死 h-6 / h-[24px]
+
+   === 间距节奏(走 px-2/3/4,避免 py-2.5 / py-3.5 这种 10/14px 异类)===
+     chrome header/footer: px-4 py-2  (24px 高)
+     panel content:        p-5         (20px 内边距)
+     inline row:           px-3 py-1.5 (12/6px,文件/笔记行)
+     list header:          px-3 py-2   (12/8px,filter chip + search)
+     status text:          px-3 py-2   (同上,左右对称)
+
+   === 字号(走 text-2xs/xs/sm/base/lg,5 档封顶)===
+     2xs 13 / xs 14 / sm 15 / base 16 / lg 18
+     不要用 text-[Npx] 任意值 — 锁定在这 5 档保持层级清晰
+     唯一例外:.prose-academic 的正文 14.5px —— 长文连续阅读的舒适字号
+     落在 xs(14)和 sm(15)之间,是排版决定而非 UI 层级,故豁免。
+
+   === hover 强度(两套,不要混)===
+     列表行  bg-bg-hover/60   指针会连续扫过很多行,全强度会让整列"闪"
+     按钮/控件 bg-bg-hover     单点目标,要给足"可点"的反馈
+     见 .list-row / .btn-ghost / .titlebar-btn
+
+   === 过渡时长 ===
+     duration-120   120ms  所有 hover/focus 色变(globals.css 走 duration-120 自定义)
+     duration-150   150ms  Modal 缩放进入、Toast 上滑进入
+     duration-180   180ms  Toast 上滑进入稍慢一点(180 vs 150)
+     duration-200   200ms  Drawer 右侧滑入
+     不要 < 80ms(太突兀)或 > 250ms(感觉迟钝)
+
+   === 阴影 ===
+     shadow-modal  模态/抽屉(全局唯一,其他场景不要自造 shadow)
+     其它 box-shadow 走 inline style / 不强求 token
+
+   === 焦点环(键盘 Tab 可见,鼠标点击不出现)===
+     focus-visible:ring-1 focus-visible:ring-accent
+     outline-none   ← 抑制浏览器原生 outline 与 ring 叠加
+     默认走 .btn / .input-base 自带;手写 button 时自己补上
+   ============================================================ */
+/* ============================================================
+   r247:基础配方改为「可被预览元素复用」的选择器组。
+
+   `:root, [data-theme-preview='dark']` —— 同一个配方块既定义 <html> 的
+   默认暗色,也定义任何一个带 data-theme-preview="dark" 的元素(设置页
+   配色卡片的「深色半边」)。这样**不用复制第二份色值**,预览色卡天然
+   跟真实主题一致 —— 少一份手抄 = 少一处漂移。
+
+   同理 `:root.light, [data-theme-preview='light']` 是浅色配方。
+
+   优先级说明:
+     - 两个块都在 @layer 之外(未分层)⇒ 优先级高于 @layer base/components
+       里的同名声明 ✓
+     - `:root.light`(0,2,0) 比 `:root`(0,1,0) 更高 ⇒ html 挂 .light 时
+       浅色配方胜出 ✓
+     - 预览元素上「自身声明」永远压过「从 html 继承来的值」⇒ 预览色卡
+       显示的是该预览档自己的配方,而不是当前主题的配方 ✓
+   ============================================================ */
+:root,
+[data-theme-preview='dark'] {
+  color-scheme: dark;
+
+  /* chrome 高度 token — 单一真实来源。
+     任何 chrome 段(TitleBar / StatusBar / TabsBar)都通过 tailwind 的
+     h-titlebar / h-statusbar / h-tabs 引用,不再硬写 h-9 / h-[22px]。
+     修改一处即可全局生效。
+     重构 (2026-09-02):状态栏 26 → 24(VSCode 22 / Linear 28,取中)。 */
+  --titlebar-h: 36px; /* h-titlebar */
+  --statusbar-h: 24px; /* h-statusbar — 紧凑(VSCode 风),11px 字号 + 12px 图标 */
+  --tabsbar-h: 35px; /* h-tabs — VSCode 35,略加高让下划线更"立" */
+  --titlebar-btn-w: 46px; /* .titlebar-btn — Windows 原生 chrome 的按钮宽度 */
+  /* 关闭键 hover 红 —— 跨主题恒定(Win 原生约定,不跟 accent 走) */
+  --titlebar-close-rgb: 196 43 28; /* #C42B1C */
+
+  /* === Linear 暗色配方(默认 2026-09-04 V1.8 — 加对比,去柔光)===
+     V1.8 修正(V1.7 层次差仅 6-8 灰度,导致眼睛分不清"面板 vs 主区",
+     文字也跟着糊)。新层次差 ~10 灰度/档,canvas 改为纯黑,border 提高
+     一档清晰可辨;fg primary 略提亮,中文字在 Windows 暗底下更清楚。
+     Linear 招牌:纯黑画布 + 中性灰层级 + 招牌紫蓝 #5E6AD2。
+     hover 抬 ~11 灰度,"被按下"的反馈清晰可读。 */
+  --bg-rgb: 17 18 22; /* #111216 — 主区内容层(比 V1.7 亮 ~5,清晰跟 canvas 区分) */
+  --bg-canvas-rgb: 7 8 10; /* #07080A — 应用最外层画布(Linear 实际就是纯黑) */
+  --bg-surface-rgb: 26 27 31; /* #1A1B1F — 侧栏、面板(中性,跟 bg 差 ~9,清晰"面板") */
+  --bg-raised-rgb: 35 36 41; /* #232429 — header / tabs(比 surface 抬 ~9,清晰"头部") */
+  --bg-hover-rgb: 46 46 52; /* #2E2E34 — 行/按钮 hover(比 raised 抬 ~11,清晰"hover") */
+  --bg-active-rgb: 56 57 64; /* #383940 — segmented control / active chip */
+  --bg-selected-rgb: 33 36 58; /* #21243A — 紫调选中(比 surface 抬 ~7,紫色 + 亮度双重信号) */
+
+  /* 边框 — V1.8 提一档,在更亮的 surface 上仍清晰 */
+  --border-rgb: 42 43 48; /* #2A2B30 — 默认(surface 上看得清) */
+  --border-subtle-rgb: 30 31 36; /* #1E1F24 — 行内分割(弱一档但仍可见) */
+  --border-strong-rgb: 64 66 72; /* #404248 — 强调 */
+  --border-focus-rgb: 94 106 210; /* #5E6AD2 — focus ring = accent 紫 */
+
+  /* 文字 — V1.8 略提亮,Windows 暗底下中文字边缘更锐利 */
+  --fg-rgb: 240 242 245; /* #F0F2F5  primary    ratio ≈ 16.2  AAA */
+  --fg-secondary-rgb: 184 188 194; /* #B8BCC2  secondary  ratio ≈  9.5  AAA */
+  --fg-tertiary-rgb: 138 142 148; /* #8A8E94  tertiary   ratio ≈  5.8  AA  */
+  --fg-muted-rgb: 100 104 110; /* #64686E  muted      ratio ≈  3.6  AA-large */
+
+  /* 强调色 — Linear 招牌紫蓝(浅色配方与之一致,深色 V1.7 切到此色) */
+  --accent-rgb: 94 106 210; /* #5E6AD2 — 主紫蓝 */
+  --accent-hover-rgb: 117 112 255; /* #7170FF — hover 略亮紫 */
+  --accent-dim-rgb: 32 34 56; /* #202238 — 紫色淡化背景(比 V1.7 略亮,匹配新 selected) */
+
+  /* 状态色 — 暗色下保持中等饱和度(原色作「色」用,实心底另见 strong 档) */
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 60 158 100; /* #3C9E64 — white ≈ 3.35:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 49 128 81; /* #318051 — white ≈ 4.84:1 AA */
+  --warning-rgb: 200 150 60; /* #C8963C — white ≈ 2.66:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 144 108 43; /* #906C2B — white ≈ 4.81:1 AA */
+  --danger-rgb: 196 80 80; /* #C45050 — white ≈ 4.55:1 AA */
+  --danger-strong-rgb: 189 77 77; /* #BD4D4D — white ≈ 4.85:1 AA */
+
+  /* 模块语义色 — Linear 暗色下保持差异化(青/赭石) */
+  --module-library-rgb: 90 175 195; /* #5AAFC3  学术青 */
+  --module-notes-rgb: 220 165 80; /* #DCA550  赭石 */
+
+  /* Modal/Drawer/Confirm 遮罩 */
+  --overlay-scrim-rgb: 0 0 0;
+
+  /* 滚动条 thumb — audit-r143 (2026-10-19) A7:
+     原值 --border-rgb (#2A2B30) 在 bg-surface (#1A1B1F) 上对比度仅 1.22:1,
+     fail WCAG SC 1.4.11 (3:1)。本 token 设计为 3.11:1 起步,
+     仍比 fg-muted (3.60:1) 弱一档,保留"thumb 比文本更轻"的视觉等级。 */
+  --scrollbar-thumb-rgb: 100 104 112; /* #646870 — ratio ≈ 3.08 vs bg-surface  AA-non-text */
+}
+
+/* 显式浅色配方 —— :root.light 由 lib/theme 在用户选 light 时挂上。
+   Linear 风:近白画布 + 极弱 surface(几乎与 bg 同色)+ 浅紫蓝 selected。 */
+:root.light,
+[data-theme-preview='light'] {
+  color-scheme: light;
+
+  --bg-rgb: 255 255 255; /* #FFFFFF — 主区 */
+  --bg-canvas-rgb: 250 250 250; /* #FAFAFA — 画布 */
+  --bg-surface-rgb: 247 247 248; /* #F7F7F8 — 面板(Linear 风:几乎与 bg 同) */
+  --bg-raised-rgb: 241 241 243; /* #F1F1F3 — header / tabs */
+  --bg-hover-rgb: 235 235 238; /* #EBEBEE — hover */
+  --bg-active-rgb: 220 222 226; /* #DCDEE2 — segmented control active(Linear 风) */
+  --bg-selected-rgb: 232 234 253; /* #E8EAFD — Linear 浅紫蓝 */
+
+  --border-rgb: 226 226 230; /* #E2E2E6 — 默认 */
+  --border-subtle-rgb: 235 235 238; /* #EBEBEE — 极弱 */
+  --border-strong-rgb: 196 196 202; /* #C4C4CA — 强调 */
+  --border-focus-rgb: 94 106 210; /* #5E6AD2 — Linear 紫蓝 */
+
+  --fg-rgb: 24 24 28; /* #18181C */
+  --fg-secondary-rgb: 76 76 86; /* #4C4C56 */
+  --fg-tertiary-rgb: 92 92 104; /* #5C5C68 — WCAG AA normal text on bg/bg-raised */
+  --fg-muted-rgb: 112 112 124; /* #70707C — WCAG AA-large on bg, AA on bg-raised */
+
+  --accent-rgb: 94 106 210; /* #5E6AD2 — Linear 紫蓝 */
+  --accent-hover-rgb: 113 112 255; /* #7170FF — hover */
+  --accent-dim-rgb: 232 234 253; /* #E8EAFD */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 32 122 80; /* #207A50 — white ≈ 5.30:1 AA */
+  --success-strong-rgb: 32 122 80; /* #207A50 — white ≈ 5.30:1 AA */
+  --warning-rgb: 154 108 24; /* #9A6C18 — white ≈ 4.63:1 AA */
+  --warning-strong-rgb: 150 105 23; /* #966917 — white ≈ 4.85:1 AA */
+  --danger-rgb: 178 56 56; /* #B23838 — white ≈ 5.97:1 AA */
+  --danger-strong-rgb: 178 56 56; /* #B23838 — white ≈ 5.97:1 AA */
+
+  --module-library-rgb: 42 145 175;
+  --module-notes-rgb: 195 130 50;
+
+  --overlay-scrim-rgb: 0 0 0;
+
+  /* 滚动条 thumb — audit-r143 (2026-10-19) A7:
+     浅色 bg-surface (#F7F7F8) 上的 thumb 需要更"深"才能达 3:1。
+     本值在 bg-surface 上对比度 ≈ 3.62:1,符合 WCAG SC 1.4.11。 */
+  --scrollbar-thumb-rgb: 130 130 142; /* #82828E — ratio ≈ 3.6  AA-non-text */
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    /* V1.8:canvas 改为纯黑(#07080A),不再叠顶部 radial。
+       V1.7 那种"环境高光"在大屏上读起来其实像"屏幕中央被洗白了一点",
+       跟"高级感"关系不大 —— Linear 实际就是纯黑画布。
+       改 flat 之后眼睛能立刻分清"主区 vs 面板",文字边缘也变锐利。 */
+    background: rgb(var(--bg-canvas-rgb));
+    background-attachment: fixed;
+    color: rgb(var(--fg-rgb));
+    font-family:
+      'Inter',
+      -apple-system,
+      BlinkMacSystemFont,
+      'PingFang SC',
+      'Microsoft YaHei',
+      sans-serif;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+
+  /* 全局键盘焦点环 — Linear 风格:2px 实线,紫色,内嵌贴边
+     注意:不用 .focus: 而用 :focus-visible 保证鼠标点击不出现焦点环,
+     仅键盘 Tab/Shift+Tab 才显示。Phase 1 强化:
+     - 用 CSS 变量统一管理颜色与粗细,便于主题预设切换
+     - 对 input/textarea/[contenteditable] 用更明显的 2px outline-offset: 0
+       让边框看得见 */
+  :root {
+    --focus-ring-color: rgb(var(--accent-rgb));
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+  }
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+    border-radius: 4px;
+    /* Linear 风 premium:实线 outline 之外再叠一圈 4px 淡紫光晕(~20% alpha),
+       把"硬边的 2px 实线"软化成"被一圈柔光照亮"的感觉。
+       高对比度用户仍能看到 outline 实线(WCAG 2.4.7 仍满足),
+       普通用户看到的是柔和高亮,不"刺眼"。 */
+    box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.2);
+  }
+  /* 表单元素:focus-visible 用 0 offset 让边线贴着 input 框,不"飘"在框外 */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [contenteditable='true']:focus-visible {
+    outline-offset: 0;
+    border-radius: 4px;
+  }
+
+  /* ============================================================
+     High Contrast / Forced Colors (WCAG 2.4.7 Focus Visible)
+     —— Windows 高对比度模式强制使用系统色板;accent-rgb / 0.2 alpha 渐变
+     晕环消失。回退到系统焦点轮廓(CanvasText),并加大 outline-offset 防被
+     border 截断。
+     ============================================================ */
+  @media (forced-colors: active) {
+    *:focus {
+      outline: revert;
+    }
+    *:focus-visible {
+      outline: 3px solid CanvasText;
+      box-shadow: none;
+      outline-offset: 2px;
+    }
+  }
+
+  /* 高对比度偏好(部分 macOS / Linux 设置):提亮 fg / border RGB。
+     范围限于 dark + light 两个主主题 —— 预设块不动:r247 起预设本身已按
+     WCAG AA 逐档校准过正文对比(见 theme-presets-contrast.test.ts),
+     用户要更高对比度时直接选「高对比」预设即可,不必靠媒体查询叠加
+     (叠加反而会打乱各配色自己的 fg/bg 配对关系)。 */
+  @media (prefers-contrast: more) {
+    :root {
+      --fg-rgb: 255 255 255;
+      --border-rgb: 220 220 220;
+    }
+    :root.light {
+      --fg-rgb: 0 0 0;
+      --border-rgb: 30 30 30;
+    }
+  }
+
+  /* ============================================================
+     Skip Link — 无障碍 WCAG 2.4.1 "Bypass Blocks"
+     默认隐藏(屏外),Tab 第一次聚焦时出现在左上角,Enter 跳到主内容。
+     屏幕阅读器始终能读到(不被 sr-only 隐藏)。
+     ============================================================ */
+  .skip-link {
+    position: fixed;
+    top: -100px;
+    left: 12px;
+    z-index: 9999;
+    padding: 8px 14px;
+    background: rgb(var(--accent-rgb));
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: top 150ms ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  .skip-link:focus,
+  .skip-link:focus-visible {
+    top: 12px;
+    outline: 2px solid white;
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     TitleBar drag region (2026-09):
+       frame:false + titleBarStyle:hidden 完全去掉原生 chrome,
+       渲染层 TitleBar 用 CSS 把整条 bar 标记为可拖拽区域,
+       内部按钮用 titlebar-no-drag 排除。
+
+     -webkit-app-region:drag    整条 bar 可拖
+     -webkit-app-region:no-drag 按钮不可拖(优先级高于父级)
+     user-select:none           拖动时浏览器默认会选中文本,禁用避免选中闪烁
+     ============================================================ */
+  .titlebar-drag {
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+  .titlebar-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* 屏幕阅读器专用类 — 视觉隐藏但仍可被朗读 */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* 自定义滚动条 — Linear 风格:细(8px),thumb 用专属 token,无 track
+     audit-r143 (2026-10-19) A7:原 background 用 --border-rgb,
+     在深色主题下 thumb/bg 对比度仅 1.22:1,fail WCAG SC 1.4.11 (3:1)。
+     改用 --scrollbar-thumb-rgb(各主题单独校准到 3:1+,见 :root 块注释)。
+     hover 与 rest 同色 —— 原 hover(--fg-muted-rgb)在 solarized-light /
+     solarized-dark / one-dark 三预设上仍 fail 3:1,与 rest 一起用本 token
+     既保 hover 反馈可见(thumb 一直可见),又避免 per-theme 重复 override。 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--scrollbar-thumb-rgb));
+    border-radius: 4px;
+    border: none;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--scrollbar-thumb-rgb));
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* 隐藏滚动条的辅助类 — TabsBar 横向滚动用 */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 选区 */
+  ::selection {
+    background: rgb(var(--accent-dim-rgb));
+    color: rgb(var(--fg-rgb));
+  }
+
+  /* Firefox 滚动条着色 —— Webkit 走 ::-webkit-scrollbar,Firefox 走
+     scrollbar-color 单一属性。thumb 用同 token(见 r143c),track 透明,
+     与 Webkit 行为视觉一致。装在 html 元素上默认覆盖全文档滚动区。
+     audit-r145c (2026-10-19) MED:E5 曾在此加 scrollbar-gutter: stable,
+     audit-r237 (2026-10-20) 删除 —— 位置放错了:本 app 文档流根本不滚动
+     (App 根节点 `h-screen … overflow-hidden`,列表 / Reader / 笔记全部
+     在内部面板各自滚动),html 上的 stable gutter 就变成**永久预留的右侧
+     死白条**(`scrollbar-width: thin` 下约 11px),用户报「窗口关闭按钮
+     右边一条窄空白」。r145c 担心的「列表出现/收起滚动条时内容跳 8px」
+     属于**内部滚动容器**的问题;若日后要治,应把 scrollbar-gutter 加到
+     真正滚动的元素上,而不是 html。
+     锁:tests/unit/renderer/styles/no-html-scrollbar-gutter.test.ts
+
+     ★ audit-r250 (2026-10-21):整块必须**只对 Firefox 生效**。
+       关键在于两个标准属性的**继承性不同**:
+         scrollbar-color  → **可继承**(html 上的值会一路传到每个内部滚动容器)
+         scrollbar-width  → **不可继承**(仍是各元素自己的 auto)
+       Chromium 124 的规则:一旦某元素的 scrollbar-color 不是 auto,UA 就改用
+       「标准滚动条」渲染并**忽略整套 ::-webkit-scrollbar 规则**。于是内部
+       容器拿到的是「color=非auto(继承)+ width=auto(没继承)」这一组合 ⇒
+       走 17px 的 Windows 原生滚动条(▲▼ 箭头 + 浅灰 thumb),上面那套
+       8px / 圆角 / 按主题校准到 3:1 的 --scrollbar-thumb-rgb(r143)
+       从来**没生效过**。
+       实测(Chromium 124 / Electron 30,真机 CDP 探针;数字 = 滚动条实际占位):
+         只有 ::-webkit-scrollbar(8px)                →  8px  ✅ 主题生效
+         ::-webkit-scrollbar + 两个标准属性(同元素)   → 11px  (width:thin)
+         只有 scrollbar-color(+width:auto)            → 17px  ❌ 原生箭头条
+         scrollbar-color 挂在 html 上(继承到子容器)   → 17px  ❌ 原生箭头条
+       暗色主题下那条浅灰原生滚动条既跟主题打架,又白占 9px 侧栏宽度。
+       修 = 把标准属性收进 `@supports (-moz-appearance: none)`
+       (仅 Gecko 为真;Chromium 实测 CSS.supports('-moz-appearance','none')
+        === false)⇒ Chromium 保留 ::-webkit-scrollbar 主题,
+       Firefox 仍拿到 scrollbar-color 着色。
+       锁:tests/unit/renderer/styles/scrollbar-standard-props-firefox-only.test.ts */
+  @supports (-moz-appearance: none) {
+    html {
+      scrollbar-color: rgb(var(--scrollbar-thumb-rgb)) transparent;
+      scrollbar-width: thin;
+    }
+  }
+
+  /* 全局禁用态视觉 —— 原 .btn 单点覆盖只罩 button,input / textarea / select
+     等原生表单元素无 disabled 视觉提示(opacity 不变 / cursor 仍 pointer),
+     用户看不出「这个字段不能点」。*:disabled 兜底:opacity-50 + cursor-not-allowed,
+     与全站已 .btn 节奏一致。 */
+  *:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
+
+/* 尊重用户的「减少动画」系统设置 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 极简动画工具类 — 替代 tailwindcss-animate,仅 Modal/Toast 用 */
+@keyframes ui-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ui-zoom-in-95 {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ui-slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ui-slide-in-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes ui-slide-left-fade {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.animate-in.fade-in {
+  animation: ui-fade-in 150ms ease-out both;
+}
+.animate-in.zoom-in-95 {
+  animation: ui-zoom-in-95 150ms ease-out both;
+}
+.animate-in.slide-up-fade {
+  animation: ui-slide-up-fade 180ms ease-out both;
+}
+.animate-in.slide-in-from-right {
+  animation: ui-slide-in-from-right 200ms ease-out both;
+}
+.animate-in.slide-left-fade {
+  animation: ui-slide-left-fade 160ms ease-out both;
+}
+@keyframes ui-menu-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.animate-in.menu-pop {
+  animation: ui-menu-pop 120ms ease-out both;
+}
+
+/* ============================================================
+   Skeleton — 加载占位的 shimmer 动画
+   bg 占位色在浅深模式分别取 bg-surface / bg-raised,
+   shimmer 用 accent 弱化叠加,动效时长 1.6s 保持柔和不抢眼。
+   用法:<Skeleton className="h-4 w-32" /> 或 <SkeletonLines rows={5} />
+   ============================================================ */
+@keyframes ui-shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+.skeleton {
+  background-color: rgb(var(--bg-surface-rgb));
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--bg-surface-rgb)) 0px,
+    rgb(var(--bg-hover-rgb)) 40px,
+    rgb(var(--bg-surface-rgb)) 80px
+  );
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  border-radius: 4px;
+  animation: ui-shimmer 1600ms ease-in-out infinite;
+}
+/* 减少动画偏好下,直接给静态色,不闪烁 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   字体族 — Phase 3 三档可选:
+     system  跟随系统字体栈(默认)
+     serif   衬线字体,适合长文阅读
+     mono    等宽字体,适合代码块 / path
+   选择器写到 <html data-font-family="...">,body 用 [data-font-family] 匹配。
+   ============================================================ */
+:root[data-font-family='serif'] body,
+[data-font-family='serif'] body {
+  /* 学术阅读字体族:覆盖 macOS / iOS / Windows / Linux + 中文衬线 fallback */
+  font-family:
+    'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', 'Charter', 'Georgia', 'STSong',
+    'Songti SC', serif;
+  font-feature-settings: 'kern', 'liga', 'onum';
+}
+:root[data-font-family='mono'] body,
+[data-font-family='mono'] body {
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Cascadia Mono', 'Consolas', 'Liberation Mono', 'Courier New',
+    monospace;
+  font-feature-settings: 'calt', 'liga';
+}
+/* 编辑器内的代码块总是用 mono,与 body 字体解耦 */
+code,
+kbd,
+pre,
+samp {
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Cascadia Mono', 'Consolas', 'Liberation Mono', monospace;
+  font-size: 0.92em;
+}
+
+/* ============================================================
+   主题预设 — r247 扩到 15 档
+   data-theme-preset 写到 <html>,每个预设通过覆盖 CSS 变量生效。
+   default = 不挂属性,沿用 :root / .root.light 的"原始 Linear"配方。
+
+   选型(面向科研文献 / 长文阅读):
+     default          跟随浅色 / 深色 / 系统(V1.8 Linear 紫蓝)
+     github-light     GitHub Light —— 界面通用度最高,几乎人人认得
+     github-dark      GitHub Dark  —— 同上,暗底版
+     solarized-light  经典 Solarized Light(暖米底 + 青色主调)
+     solarized-dark   经典 Solarized Dark(深蓝绿底)
+     one-dark         Atom One Dark(深紫灰底 + 蓝紫主调)
+     nord             Nord(冷调低饱和,长时间看不累)
+     dracula          Dracula(高辨识度紫粉)
+     tokyo-night      Tokyo Night(深蓝夜)
+     gruvbox-light    Gruvbox Light(复古暖纸色)
+     gruvbox-dark     Gruvbox Dark(复古暖褐)
+     catppuccin-latte Catppuccin Latte(柔和粉调浅色)
+     catppuccin-mocha Catppuccin Mocha(柔和粉调深色)
+     sepia            护眼米色(长时间读论文不刺眼)
+     high-contrast    高对比(无障碍 / 强光环境)
+
+   三条约定(改任何一档都照办):
+     1. **只改 token,不重写组件** ⇒ 组件代码零改动,新增主题 = 新增一段 CSS;
+     2. **每档必须写全 25 个 token** —— 漏写一个就静默继承上一档的值,
+        出现「半套配色」(solarized 的字压在新底色上这类)。
+        守卫:tests/unit/renderer/styles/theme-presets-token-coverage.test.ts;
+     3. **文字对比度按 WCAG AA 校准**(正文 4.5:1 / 非文字 3:1)。
+        守卫:tests/unit/renderer/styles/theme-presets-contrast.test.ts。
+
+   选择器写法 `:root[data-theme-preset='x'], [data-theme-preset='x']`:
+     第二个选择器让**任意元素**(设置页的预览色卡)都能挂上这套配方,
+     于是色卡显示的就是真实配色,不需要在 JS 里复制一份色值。
+   ============================================================ */
+:root[data-theme-preset='solarized-light'],
+[data-theme-preset='solarized-light'] {
+  color-scheme: light;
+
+  --bg-rgb: 253 246 227; /* #FDF6E3  base3  暖米白 */
+  --bg-canvas-rgb: 250 243 221; /* #FAF3DD  base3 略暗 */
+  --bg-surface-rgb: 245 235 208; /* #F5EBD0  base2 卡片 */
+  --bg-raised-rgb: 238 226 195; /* #EEE2C3  base1 浮起 */
+  --bg-hover-rgb: 226 213 184; /* #E2D5B8  base0 hover */
+  --bg-active-rgb: 207 197 168; /* segmented control 选中态 */
+  --bg-selected-rgb: 220 207 178;
+
+  --border-rgb: 220 207 178; /* #DCCFB2 */
+  --border-subtle-rgb: 234 222 192;
+  --border-strong-rgb: 195 178 142;
+  --border-focus-rgb: 38 139 210;
+
+  --fg-rgb: 7 54 66; /* #073642  base02 主前景 — ratio ≈ 12.0 AAA */
+  --fg-secondary-rgb: 51 87 97; /* #335761  ratio ≈ 7.5  AA  */
+  /* r247:三级文字加深 —— 原 #60707A 在 raised(#EEE2C3)上只有 3.99:1,
+     达不到正文 AA 4.5:1;改 #526570 后 4.71:1。同理 muted 见下。 */
+  --fg-tertiary-rgb: 82 101 112; /* #526570 — ratio ≈ 4.71 AA */
+  --fg-muted-rgb: 117 137 138; /* #75898A — ratio ≈ 3.41 AA-large(原 #859999 只有 2.78) */
+
+  --accent-rgb: 32 133 204; /* #2085CC — ratio ≈ 3.08 vs bg */
+  --accent-hover-rgb: 31 117 180;
+  --accent-dim-rgb: 219 234 245;
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 130 150 0; /* #829600 — ratio ≈ 3.08 vs bg */
+  --success-strong-rgb: 105 121 0; /* #697900 — white ≈ 4.84:1 AA */
+  --warning-rgb: 179 135 0; /* #B38700 — ratio ≈ 3.05 vs bg */
+  --warning-strong-rgb: 144 109 0; /* #906D00 — white ≈ 4.80:1 AA */
+  --danger-rgb: 220 50 47; /* #DC322F — white ≈ 4.63:1 AA */
+  --danger-strong-rgb: 215 49 46; /* #D7312E — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 38 157 148; /* #269D94 — ratio ≈ 3.07 vs bg */
+  --module-notes-rgb: 179 135 0; /* #B38700 — ratio ≈ 3.05 vs bg */
+
+  /* 滚动条 thumb — audit-r143 (2026-10-19) A7:
+     暖米底 (#F5EBD0) 上的 thumb 需要比 :root.light 更深的暖灰,3.61:1。 */
+  --scrollbar-thumb-rgb: 130 120 100; /* #827864 — ratio ≈ 3.6 */
+}
+
+:root[data-theme-preset='solarized-dark'],
+[data-theme-preset='solarized-dark'] {
+  color-scheme: dark;
+
+  --bg-rgb: 0 43 54; /* #002B36  base03 主区 */
+  --bg-canvas-rgb: 4 36 46; /* #04242E  更深一档 */
+  --bg-surface-rgb: 7 54 66; /* #073642  base02 卡片 */
+  --bg-raised-rgb: 18 65 77; /* #12414D  浮起 */
+  --bg-hover-rgb: 36 79 91; /* #244F5B  hover */
+  --bg-active-rgb: 50 88 100; /* segmented control 选中态 */
+  --bg-selected-rgb: 50 88 100;
+
+  --border-rgb: 36 79 91; /* #244F5B */
+  --border-subtle-rgb: 24 65 76;
+  --border-strong-rgb: 56 96 108;
+  --border-focus-rgb: 38 139 210;
+
+  --fg-rgb: 253 246 227; /* #FDF6E3  base3  — ratio ≈ 13.0 AAA */
+  --fg-secondary-rgb: 211 211 191; /* #D3D3BF */
+  /* r247:三级 / 四级文字提亮 —— 原 #93A1A1 在 raised(#12414D)上 4.16:1、
+     #657B83 在 bg 上 2.86:1,都不到 AA;改后 4.94 / 3.38。 */
+  --fg-tertiary-rgb: 160 176 176; /* #A0B0B0 — ratio ≈ 4.94 AA */
+  --fg-muted-rgb: 116 134 141; /* #74868D — ratio ≈ 3.38 AA-large */
+
+  --accent-rgb: 38 139 210; /* #268BD2  blue — 选深色背景也能保持 AA */
+  --accent-hover-rgb: 80 168 230;
+  --accent-dim-rgb: 17 65 92;
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 133 153 0; /* #859900 — white ≈ 3.20:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 105 121 0; /* #697900 — white ≈ 4.84:1 AA */
+  --warning-rgb: 181 137 0; /* #B58900 — white ≈ 3.21:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 144 109 0; /* #906D00 — white ≈ 4.80:1 AA */
+  --danger-rgb: 220 50 47; /* #DC322F — white ≈ 4.63:1 AA */
+  --danger-strong-rgb: 215 49 46; /* #D7312E — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 42 161 152;
+  --module-notes-rgb: 181 137 0;
+
+  /* 滚动条 thumb — audit-r143 (2026-10-19) A7:
+     深蓝绿底 (#073642) 上的浅灰 thumb,4.15:1。 */
+  --scrollbar-thumb-rgb: 130 150 160; /* #8296A0 — ratio ≈ 4.2 */
+}
+
+:root[data-theme-preset='one-dark'],
+[data-theme-preset='one-dark'] {
+  color-scheme: dark;
+
+  --bg-rgb: 40 44 52; /* #282C34  主区 */
+  --bg-canvas-rgb: 33 37 43; /* #21252B  canvas */
+  --bg-surface-rgb: 33 37 43; /* #21252B  侧栏 */
+  --bg-raised-rgb: 50 56 66; /* #323844  浮起 */
+  --bg-hover-rgb: 60 66 76; /* #3C424C  hover */
+  --bg-active-rgb: 72 80 92; /* segmented control 选中态 */
+  --bg-selected-rgb: 64 71 84;
+
+  --border-rgb: 56 60 69; /* #383C45 */
+  --border-subtle-rgb: 46 50 58;
+  --border-strong-rgb: 75 81 92;
+  --border-focus-rgb: 97 175 239;
+
+  --fg-rgb: 220 223 228; /* #DCDFE4  浅灰白 — ratio ≈ 12.0 AAA */
+  --fg-secondary-rgb: 179 184 191;
+  /* r247:三级 / 四级文字提亮 —— 原 #8B9199 在 raised(#323844)上 3.58:1、
+     #636971 在 bg 上 2.53:1,都不到 AA;改后 4.74 / 3.62。 */
+  --fg-tertiary-rgb: 158 165 174; /* #9EA5AE — ratio ≈ 4.74 AA */
+  --fg-muted-rgb: 123 130 144; /* #7B8290 — ratio ≈ 3.62 AA-large */
+
+  --accent-rgb: 97 175 239; /* #61AFEF  blue */
+  --accent-hover-rgb: 138 199 247;
+  --accent-dim-rgb: 36 60 92;
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 152 195 121; /* #98C379 — white ≈ 2.02:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 95 122 76; /* #5F7A4C — white ≈ 4.80:1 AA */
+  --warning-rgb: 229 192 123; /* #E5C07B — white ≈ 1.73:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 133 111 71; /* #856F47 — white ≈ 4.81:1 AA */
+  --danger-rgb: 224 108 117; /* #E06C75 — white ≈ 3.20:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 177 85 92; /* #B1555C — white ≈ 4.86:1 AA */
+
+  --module-library-rgb: 86 182 194; /* cyan */
+  --module-notes-rgb: 229 192 123; /* yellow */
+
+  /* 滚动条 thumb — audit-r143 (2026-10-19) A7:
+     紫灰底 (#21252B) 上的浅灰 thumb,3.25:1。 */
+  --scrollbar-thumb-rgb: 110 115 125; /* #6E737D — ratio ≈ 3.3 */
+}
+
+/* ============================================================
+   GitHub Light / Dark(r247 新增)
+   —— 通用度最高的一套配色:绝大多数人天天见,零学习成本。
+   色值取 GitHub Primer 的 light / dark 主题。
+   ============================================================ */
+:root[data-theme-preset='github-light'],
+[data-theme-preset='github-light'] {
+  color-scheme: light;
+
+  --bg-rgb: 255 255 255; /* #FFFFFF 主区 */
+  --bg-canvas-rgb: 239 242 245; /* #EFF2F5 画布 */
+  --bg-surface-rgb: 246 248 250; /* #F6F8FA 侧栏 / 面板 */
+  --bg-raised-rgb: 240 243 246; /* #F0F3F6 header / tabs */
+  --bg-hover-rgb: 233 238 242; /* #E9EEF2 hover */
+  --bg-active-rgb: 221 227 233; /* #DDE3E9 segmented 选中 */
+  --bg-selected-rgb: 221 244 255; /* #DDF4FF 淡蓝选中 */
+
+  --border-rgb: 208 215 222; /* #D0D7DE */
+  --border-subtle-rgb: 228 232 237; /* #E4E8ED */
+  --border-strong-rgb: 175 184 193; /* #AFB8C1 */
+  --border-focus-rgb: 9 105 218; /* #0969DA */
+
+  --fg-rgb: 31 35 40; /* #1F2328  ratio ≈ 15.8 AAA */
+  --fg-secondary-rgb: 89 99 110; /* #59636E  ratio ≈ 5.7 AA */
+  --fg-tertiary-rgb: 101 109 118; /* #656D76  ratio ≈ 4.71 AA */
+  --fg-muted-rgb: 125 133 144; /* #7D8590  ratio ≈ 3.73 AA-large */
+
+  --accent-rgb: 9 105 218; /* #0969DA 蓝 */
+  --accent-hover-rgb: 8 96 202; /* #0860CA */
+  --accent-dim-rgb: 221 244 255; /* #DDF4FF */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 26 127 55; /* #1A7F37 — white ≈ 5.08:1 AA */
+  --success-strong-rgb: 26 127 55; /* #1A7F37 — white ≈ 5.08:1 AA */
+  --warning-rgb: 154 103 0; /* #9A6700 — white ≈ 4.87:1 AA */
+  --warning-strong-rgb: 154 103 0; /* #9A6700 — white ≈ 4.87:1 AA */
+  --danger-rgb: 207 34 46; /* #CF222E — white ≈ 5.36:1 AA */
+  --danger-strong-rgb: 207 34 46; /* #CF222E — white ≈ 5.36:1 AA */
+
+  --module-library-rgb: 27 124 131; /* #1B7C83 青 */
+  --module-notes-rgb: 154 103 0; /* #9A6700 赭 */
+
+  --scrollbar-thumb-rgb: 130 138 147; /* #828A93 — ratio ≈ 3.28 */
+}
+
+:root[data-theme-preset='github-dark'],
+[data-theme-preset='github-dark'] {
+  color-scheme: dark;
+
+  --bg-rgb: 13 17 23; /* #0D1117 主区 */
+  --bg-canvas-rgb: 1 4 9; /* #010409 画布 */
+  --bg-surface-rgb: 22 27 34; /* #161B22 侧栏 / 面板 */
+  --bg-raised-rgb: 33 38 45; /* #21262D header / tabs */
+  --bg-hover-rgb: 48 54 61; /* #30363D hover */
+  --bg-active-rgb: 61 68 77; /* #3D444D segmented 选中 */
+  --bg-selected-rgb: 18 38 60; /* #12263C 蓝调选中 */
+
+  --border-rgb: 48 54 61; /* #30363D */
+  --border-subtle-rgb: 33 38 45; /* #21262D */
+  --border-strong-rgb: 139 148 158; /* #8B949E */
+  --border-focus-rgb: 31 111 235; /* #1F6FEB */
+
+  --fg-rgb: 230 237 243; /* #E6EDF3  ratio ≈ 14.9 AAA */
+  --fg-secondary-rgb: 177 186 196; /* #B1BAC4  ratio ≈ 8.3 AA */
+  --fg-tertiary-rgb: 158 165 174; /* #9EA5AE  ratio ≈ 5.6 AA */
+  --fg-muted-rgb: 123 130 144; /* #7B8290  ratio ≈ 4.6 AA-large */
+
+  --accent-rgb: 31 111 235; /* #1F6FEB 蓝 */
+  --accent-hover-rgb: 88 166 255; /* #58A6FF */
+  --accent-dim-rgb: 18 38 60; /* #12263C */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 63 185 80; /* #3FB950 — white ≈ 2.54:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 44 130 56; /* #2C8238 — white ≈ 4.82:1 AA */
+  --warning-rgb: 210 153 34; /* #D29922 — white ≈ 2.52:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 147 107 24; /* #936B18 — white ≈ 4.82:1 AA */
+  --danger-rgb: 248 81 73; /* #F85149 — white ≈ 3.35:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 202 66 59; /* #CA423B — white ≈ 4.82:1 AA */
+
+  --module-library-rgb: 57 197 187; /* #39C5BB 青 */
+  --module-notes-rgb: 210 153 34; /* #D29922 赭 */
+
+  --scrollbar-thumb-rgb: 110 118 129; /* #6E7681 — ratio ≈ 3.77 */
+}
+
+/* ============================================================
+   Nord(r247 新增)—— 冷调低饱和,长时间阅读最省眼的一套。
+   色值取 Nord 官方调色板(nord0 / nord1 / nord3 / nord8 …)。
+   ============================================================ */
+:root[data-theme-preset='nord'],
+[data-theme-preset='nord'] {
+  color-scheme: dark;
+
+  --bg-rgb: 46 52 64; /* #2E3440 nord0 主区 */
+  --bg-canvas-rgb: 41 46 57; /* #292E39 画布 */
+  --bg-surface-rgb: 59 66 82; /* #3B4252 nord1 侧栏 */
+  --bg-raised-rgb: 67 76 94; /* #434C5E nord2 header */
+  --bg-hover-rgb: 76 86 106; /* #4C566A nord3 hover */
+  --bg-active-rgb: 97 110 136; /* #616E88 segmented 选中 */
+  --bg-selected-rgb: 62 76 99; /* #3E4C63 蓝调选中 */
+
+  --border-rgb: 76 86 106; /* #4C566A */
+  --border-subtle-rgb: 59 66 82; /* #3B4252 */
+  --border-strong-rgb: 97 110 136; /* #616E88 */
+  --border-focus-rgb: 136 192 208; /* #88C0D0 nord8 */
+
+  --fg-rgb: 236 239 244; /* #ECEFF4 nord6  ratio ≈ 10.8 AAA */
+  --fg-secondary-rgb: 216 222 233; /* #D8DEE9 nord4  ratio ≈ 8.0 AA */
+  --fg-tertiary-rgb: 183 192 205; /* #B7C0CD  ratio ≈ 5.9 AA */
+  --fg-muted-rgb: 137 147 159; /* #89939F  ratio ≈ 4.4 AA-large */
+
+  --accent-rgb: 136 192 208; /* #88C0D0 nord8 冰蓝 */
+  --accent-hover-rgb: 143 188 187; /* #8FBCBB nord7 */
+  --accent-dim-rgb: 67 76 94; /* #434C5E */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 163 190 140; /* #A3BE8C — white ≈ 2.04:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 102 119 87; /* #667757 — white ≈ 4.84:1 AA */
+  --warning-rgb: 235 203 139; /* #EBCB8B — white ≈ 1.56:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 129 112 76; /* #81704C — white ≈ 4.82:1 AA */
+  --danger-rgb: 191 97 106; /* #BF616A — white ≈ 4.09:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 174 88 96; /* #AE5860 — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 136 192 208; /* #88C0D0 */
+  --module-notes-rgb: 235 203 139; /* #EBCB8B */
+
+  --scrollbar-thumb-rgb: 138 148 166; /* #8A94A6 — ratio ≈ 3.29 */
+}
+
+/* ============================================================
+   Dracula(r247 新增)—— 高辨识度紫粉,开发者圈最熟的一套暗色。
+   ============================================================ */
+:root[data-theme-preset='dracula'],
+[data-theme-preset='dracula'] {
+  color-scheme: dark;
+
+  --bg-rgb: 40 42 54; /* #282A36 主区 */
+  --bg-canvas-rgb: 30 31 41; /* #1E1F29 画布 */
+  --bg-surface-rgb: 52 55 70; /* #343746 侧栏 */
+  --bg-raised-rgb: 68 71 90; /* #44475A header */
+  --bg-hover-rgb: 78 80 101; /* #4E5065 hover */
+  --bg-active-rgb: 90 92 112; /* #5A5C70 segmented 选中 */
+  --bg-selected-rgb: 60 63 82; /* #3C3F52 选中 */
+
+  --border-rgb: 68 71 90; /* #44475A */
+  --border-subtle-rgb: 56 58 74; /* #383A4A */
+  --border-strong-rgb: 98 114 164; /* #6272A4 */
+  --border-focus-rgb: 189 147 249; /* #BD93F9 紫 */
+
+  --fg-rgb: 248 248 242; /* #F8F8F2  ratio ≈ 14.0 AAA */
+  --fg-secondary-rgb: 216 216 224; /* #D8D8E0  ratio ≈ 8.3 AA */
+  --fg-tertiary-rgb: 180 184 200; /* #B4B8C8  ratio ≈ 4.9 AA */
+  --fg-muted-rgb: 126 131 150; /* #7E8396  ratio ≈ 3.13 vs bg-surface  AA-large */
+
+  --accent-rgb: 189 147 249; /* #BD93F9 紫 */
+  --accent-hover-rgb: 201 166 245; /* #C9A6F5 */
+  --accent-dim-rgb: 58 61 82; /* #3A3D52 */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 80 250 123; /* #50FA7B — white ≈ 1.37:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 42 130 64; /* #2A8240 — white ≈ 4.81:1 AA */
+  --warning-rgb: 241 250 140; /* #F1FA8C — white ≈ 1.12:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 113 117 66; /* #717542 — white ≈ 4.86:1 AA */
+  --danger-rgb: 255 85 85; /* #FF5555 — white ≈ 3.14:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 201 67 67; /* #C94343 — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 139 233 253; /* #8BE9FD 青 */
+  --module-notes-rgb: 241 250 140; /* #F1FA8C 赭 */
+
+  --scrollbar-thumb-rgb: 138 143 166; /* #8A8FA6 — ratio ≈ 3.68 */
+}
+
+/* ============================================================
+   Tokyo Night(r247 新增)—— 深蓝夜,长时间写笔记观感最静。
+   ============================================================ */
+:root[data-theme-preset='tokyo-night'],
+[data-theme-preset='tokyo-night'] {
+  color-scheme: dark;
+
+  --bg-rgb: 26 27 38; /* #1A1B26 主区 */
+  --bg-canvas-rgb: 22 22 30; /* #16161E 画布 */
+  --bg-surface-rgb: 31 35 53; /* #1F2335 侧栏 */
+  --bg-raised-rgb: 36 40 59; /* #24283B header */
+  --bg-hover-rgb: 41 46 66; /* #292E42 hover */
+  --bg-active-rgb: 47 51 77; /* #2F334D segmented 选中 */
+  --bg-selected-rgb: 40 52 87; /* #283457 蓝调选中 */
+
+  --border-rgb: 41 46 66; /* #292E42 */
+  --border-subtle-rgb: 31 35 53; /* #1F2335 */
+  --border-strong-rgb: 59 66 97; /* #3B4261 */
+  --border-focus-rgb: 122 162 247; /* #7AA2F7 蓝 */
+
+  --fg-rgb: 192 202 245; /* #C0CAF5  ratio ≈ 11.3 AAA */
+  --fg-secondary-rgb: 169 177 214; /* #A9B1D6  ratio ≈ 7.3 AA */
+  --fg-tertiary-rgb: 139 149 192; /* #8B95C0  ratio ≈ 4.9 AA */
+  --fg-muted-rgb: 122 131 166; /* #7A83A6  ratio ≈ 4.1 AA-large */
+
+  --accent-rgb: 122 162 247; /* #7AA2F7 蓝 */
+  --accent-hover-rgb: 157 187 255; /* #9DBBFF */
+  --accent-dim-rgb: 40 52 87; /* #283457 */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 158 206 106; /* #9ECE6A — white ≈ 1.83:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 93 122 63; /* #5D7A3F — white ≈ 4.86:1 AA */
+  --warning-rgb: 224 175 104; /* #E0AF68 — white ≈ 2.00:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 139 108 64; /* #8B6C40 — white ≈ 4.86:1 AA */
+  --danger-rgb: 247 118 142; /* #F7768E — white ≈ 2.65:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 177 84 102; /* #B15466 — white ≈ 4.85:1 AA */
+
+  --module-library-rgb: 125 207 255; /* #7DCFFF 青 */
+  --module-notes-rgb: 224 175 104; /* #E0AF68 赭 */
+
+  --scrollbar-thumb-rgb: 107 115 152; /* #6B7398 — ratio ≈ 3.31 */
+}
+
+/* ============================================================
+   Gruvbox Light / Dark(r247 新增)—— 复古暖色系,纸感强,
+   适合长时间读 PDF / 论文的场景。
+   ============================================================ */
+:root[data-theme-preset='gruvbox-light'],
+[data-theme-preset='gruvbox-light'] {
+  color-scheme: light;
+
+  --bg-rgb: 251 241 199; /* #FBF1C7 主区 */
+  --bg-canvas-rgb: 237 227 198; /* #EDE3C6 画布 */
+  --bg-surface-rgb: 245 237 216; /* #F5EDD8 侧栏 */
+  --bg-raised-rgb: 221 224 232; /* #DDE0E8 header */
+  --bg-hover-rgb: 233 221 187; /* #E9DDBB hover */
+  --bg-active-rgb: 227 212 172; /* #E3D4AC segmented 选中 */
+  --bg-selected-rgb: 222 220 192; /* #DEDCC0 选中 */
+
+  --border-rgb: 213 196 161; /* #D5C4A1 */
+  --border-subtle-rgb: 227 212 172; /* #E3D4AC */
+  --border-strong-rgb: 189 174 147; /* #BDAE93 */
+  --border-focus-rgb: 7 102 120; /* #076678 青 */
+
+  --fg-rgb: 60 56 54; /* #3C3836  ratio ≈ 9.9 AAA */
+  --fg-secondary-rgb: 80 73 69; /* #504945  ratio ≈ 7.1 AA */
+  --fg-tertiary-rgb: 102 92 84; /* #665C54  ratio ≈ 4.9 AA */
+  --fg-muted-rgb: 124 111 100; /* #7C6F64  ratio ≈ 3.7 AA-large */
+
+  --accent-rgb: 7 102 120; /* #076678 青 */
+  --accent-hover-rgb: 29 127 147; /* #1D7F93 */
+  --accent-dim-rgb: 214 228 226; /* #D6E4E2 */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 121 116 14; /* #79740E — white ≈ 4.86:1 AA */
+  --success-strong-rgb: 121 116 14; /* #79740E — white ≈ 4.86:1 AA */
+  --warning-rgb: 181 118 20; /* #B57614 — white ≈ 3.77:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 157 102 17; /* #9D6611 — white ≈ 4.84:1 AA */
+  --danger-rgb: 157 0 6; /* #9D0006 — white ≈ 8.62:1 AA */
+  --danger-strong-rgb: 157 0 6; /* #9D0006 — white ≈ 8.62:1 AA */
+
+  --module-library-rgb: 66 123 88; /* #427B58 */
+  --module-notes-rgb: 181 118 20; /* #B57614 */
+
+  --scrollbar-thumb-rgb: 138 129 112; /* #8A8170 — ratio ≈ 3.19 */
+}
+
+:root[data-theme-preset='gruvbox-dark'],
+[data-theme-preset='gruvbox-dark'] {
+  color-scheme: dark;
+
+  --bg-rgb: 40 40 40; /* #282828 主区 */
+  --bg-canvas-rgb: 29 32 33; /* #1D2021 画布 */
+  --bg-surface-rgb: 50 48 47; /* #32302F 侧栏 */
+  --bg-raised-rgb: 60 56 54; /* #3C3836 header */
+  --bg-hover-rgb: 80 73 69; /* #504945 hover */
+  --bg-active-rgb: 102 92 84; /* #665C54 segmented 选中 */
+  --bg-selected-rgb: 51 69 74; /* #33454A 蓝调选中 */
+
+  --border-rgb: 80 73 69; /* #504945 */
+  --border-subtle-rgb: 60 56 54; /* #3C3836 */
+  --border-strong-rgb: 124 111 100; /* #7C6F64 */
+  --border-focus-rgb: 131 165 152; /* #83A598 青 */
+
+  --fg-rgb: 235 219 178; /* #EBDBB2  ratio ≈ 11.0 AAA */
+  --fg-secondary-rgb: 213 196 161; /* #D5C4A1  ratio ≈ 7.6 AA */
+  --fg-tertiary-rgb: 189 174 147; /* #BDAE93  ratio ≈ 5.0 AA */
+  --fg-muted-rgb: 168 153 132; /* #A89984  ratio ≈ 4.0 AA-large */
+
+  --accent-rgb: 131 165 152; /* #83A598 青 */
+  --accent-hover-rgb: 157 184 172; /* #9DB8AC */
+  --accent-dim-rgb: 42 58 60; /* #2A3A3C */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 184 187 38; /* #B8BB26 — white ≈ 2.06:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 116 118 24; /* #747618 — white ≈ 4.83:1 AA */
+  --warning-rgb: 250 189 47; /* #FABD2F — white ≈ 1.70:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 142 108 27; /* #8E6C1B — white ≈ 4.87:1 AA */
+  --danger-rgb: 251 73 52; /* #FB4934 — white ≈ 3.44:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 207 60 43; /* #CF3C2B — white ≈ 4.85:1 AA */
+
+  --module-library-rgb: 142 192 124; /* #8EC07C */
+  --module-notes-rgb: 250 189 47; /* #FABD2F */
+
+  --scrollbar-thumb-rgb: 146 131 116; /* #928374 — ratio ≈ 3.9 */
+}
+
+/* ============================================================
+   Catppuccin Latte / Mocha(r247 新增)—— 柔和粉调,对比温和,
+   长时间阅读不累;Latte 浅 / Mocha 深成对。
+   ============================================================ */
+:root[data-theme-preset='catppuccin-latte'],
+[data-theme-preset='catppuccin-latte'] {
+  color-scheme: light;
+
+  --bg-rgb: 239 241 245; /* #EFF1F5 base 主区 */
+  --bg-canvas-rgb: 220 224 232; /* #DCE0E8 crust 画布 */
+  --bg-surface-rgb: 230 233 239; /* #E6E9EF mantle 侧栏 */
+  --bg-raised-rgb: 221 224 232; /* #DDE0E8 header */
+  --bg-hover-rgb: 214 218 228; /* #D6DAE4 hover */
+  --bg-active-rgb: 201 206 219; /* #C9CEDB segmented 选中 */
+  --bg-selected-rgb: 220 231 251; /* #DCE7FB 蓝调选中 */
+
+  --border-rgb: 204 208 218; /* #CCD0DA */
+  --border-subtle-rgb: 216 219 228; /* #D8DBE4 */
+  --border-strong-rgb: 172 176 190; /* #ACB0BE */
+  --border-focus-rgb: 30 102 245; /* #1E66F5 蓝 */
+
+  --fg-rgb: 76 79 105; /* #4C4F69 text  ratio ≈ 7.1 AAA */
+  --fg-secondary-rgb: 88 91 117; /* #585B75  ratio ≈ 5.4 AA */
+  --fg-tertiary-rgb: 93 97 121; /* #5D6179  ratio ≈ 4.61 vs bg-raised  AA */
+  --fg-muted-rgb: 108 111 133; /* #6C6F85  ratio ≈ 4.4 AA-large */
+
+  --accent-rgb: 30 102 245; /* #1E66F5 蓝 */
+  --accent-hover-rgb: 24 88 214; /* #1858D6 */
+  --accent-dim-rgb: 220 231 251; /* #DCE7FB */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 47 125 31; /* #2F7D1F — white ≈ 5.15:1 AA */
+  --success-strong-rgb: 47 125 31; /* #2F7D1F — white ≈ 5.15:1 AA */
+  --warning-rgb: 166 99 20; /* #A66314 — white ≈ 4.76:1 AA */
+  --warning-strong-rgb: 164 98 20; /* #A46214 — white ≈ 4.84:1 AA */
+  --danger-rgb: 210 15 57; /* #D20F39 — white ≈ 5.43:1 AA */
+  --danger-strong-rgb: 210 15 57; /* #D20F39 — white ≈ 5.43:1 AA */
+
+  --module-library-rgb: 23 146 153; /* #179299 青 */
+  --module-notes-rgb: 166 99 20; /* #A66314 赭 */
+
+  --scrollbar-thumb-rgb: 124 128 144; /* #7C8090 — ratio ≈ 3.23 */
+}
+
+:root[data-theme-preset='catppuccin-mocha'],
+[data-theme-preset='catppuccin-mocha'] {
+  color-scheme: dark;
+
+  --bg-rgb: 24 24 37; /* #181825 mantle 主区 */
+  --bg-canvas-rgb: 17 17 27; /* #11111B crust 画布 */
+  --bg-surface-rgb: 30 30 46; /* #1E1E2E base 侧栏 */
+  --bg-raised-rgb: 49 50 68; /* #313244 header */
+  --bg-hover-rgb: 69 71 90; /* #45475A hover */
+  --bg-active-rgb: 88 91 112; /* #585B70 segmented 选中 */
+  --bg-selected-rgb: 47 48 72; /* #2F3048 紫调选中 */
+
+  --border-rgb: 49 50 68; /* #313244 */
+  --border-subtle-rgb: 35 35 53; /* #232335 */
+  --border-strong-rgb: 88 91 112; /* #585B70 */
+  --border-focus-rgb: 137 180 250; /* #89B4FA 蓝 */
+
+  --fg-rgb: 205 214 244; /* #CDD6F4  ratio ≈ 12.0 AAA */
+  --fg-secondary-rgb: 186 194 222; /* #BAC2DE  ratio ≈ 8.6 AA */
+  --fg-tertiary-rgb: 166 173 200; /* #A6ADC8  ratio ≈ 6.0 AA */
+  --fg-muted-rgb: 147 153 178; /* #9399B2  ratio ≈ 4.4 AA-large */
+
+  --accent-rgb: 137 180 250; /* #89B4FA 蓝 */
+  --accent-hover-rgb: 180 190 254; /* #B4BEFE 薰衣草 */
+  --accent-dim-rgb: 42 43 69; /* #2A2B45 */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 166 227 161; /* #A6E3A1 — white ≈ 1.49:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 89 121 86; /* #597956 — white ≈ 4.89:1 AA */
+  --warning-rgb: 249 226 175; /* #F9E2AF — white ≈ 1.27:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 124 113 87; /* #7C7157 — white ≈ 4.82:1 AA */
+  --danger-rgb: 243 139 168; /* #F38BA8 — white ≈ 2.32:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 163 93 113; /* #A35D71 — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 148 226 213; /* #94E2D5 青 */
+  --module-notes-rgb: 249 226 175; /* #F9E2AF 赭 */
+
+  --scrollbar-thumb-rgb: 127 132 156; /* #7F849C — ratio ≈ 4.44 */
+}
+
+/* ============================================================
+   护眼米色(r247 新增)—— 暖米纸底,专治「盯屏幕久了眼睛酸」。
+   不追求高饱和,所有强调色都压到低刺激区间。
+   ============================================================ */
+:root[data-theme-preset='sepia'],
+[data-theme-preset='sepia'] {
+  color-scheme: light;
+
+  --bg-rgb: 245 239 227; /* #F5EFE3 纸白主区 */
+  --bg-canvas-rgb: 237 229 213; /* #EDE5D5 画布 */
+  --bg-surface-rgb: 241 233 217; /* #F1E9D9 侧栏 */
+  --bg-raised-rgb: 232 223 203; /* #E8DFCB header */
+  --bg-hover-rgb: 225 214 190; /* #E1D6BE hover */
+  --bg-active-rgb: 214 201 172; /* #D6C9AC segmented 选中 */
+  --bg-selected-rgb: 226 220 192; /* #E2DCC0 选中 */
+
+  --border-rgb: 217 206 182; /* #D9CEB6 */
+  --border-subtle-rgb: 228 219 200; /* #E4DBC8 */
+  --border-strong-rgb: 188 174 147; /* #BCAE93 */
+  --border-focus-rgb: 138 90 43; /* #8A5A2B 暖棕 */
+
+  --fg-rgb: 59 52 42; /* #3B342A  ratio ≈ 11.0 AAA */
+  --fg-secondary-rgb: 92 82 69; /* #5C5245  ratio ≈ 6.3 AA */
+  --fg-tertiary-rgb: 102 92 78; /* #665C4E  ratio ≈ 4.9 AA */
+  --fg-muted-rgb: 140 128 114; /* #8C8072  ratio ≈ 3.4 AA-large */
+
+  --accent-rgb: 138 90 43; /* #8A5A2B 暖棕 */
+  --accent-hover-rgb: 160 106 50; /* #A06A32 */
+  --accent-dim-rgb: 237 226 204; /* #EDE2CC */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 79 122 58; /* #4F7A3A — white ≈ 5.03:1 AA */
+  --success-strong-rgb: 79 122 58; /* #4F7A3A — white ≈ 5.03:1 AA */
+  --warning-rgb: 138 98 24; /* #8A6218 — white ≈ 5.47:1 AA */
+  --warning-strong-rgb: 138 98 24; /* #8A6218 — white ≈ 5.47:1 AA */
+  --danger-rgb: 163 59 42; /* #A33B2A — white ≈ 6.53:1 AA */
+  --danger-strong-rgb: 163 59 42; /* #A33B2A — white ≈ 6.53:1 AA */
+
+  --module-library-rgb: 79 122 106; /* #4F7A6A 青 */
+  --module-notes-rgb: 138 98 24; /* #8A6218 赭 */
+
+  --scrollbar-thumb-rgb: 138 129 112; /* #8A8170 — ratio ≈ 3.19 */
+}
+
+/* ============================================================
+   高对比(r247 新增)—— 无障碍档:近黑底 + 纯白字 + 亮黄焦点环,
+   弱视用户 / 强光环境 / 投影演示都用得上。
+   WCAG AAA 正文对比(白字压近黑底 ≈ 19:1)。
+   ============================================================ */
+:root[data-theme-preset='high-contrast'],
+[data-theme-preset='high-contrast'] {
+  color-scheme: dark;
+
+  --bg-rgb: 10 10 10; /* #0A0A0A 主区 */
+  --bg-canvas-rgb: 0 0 0; /* #000000 画布 */
+  --bg-surface-rgb: 20 20 20; /* #141414 侧栏 */
+  --bg-raised-rgb: 31 31 31; /* #1F1F1F header */
+  --bg-hover-rgb: 43 43 43; /* #2B2B2B hover */
+  --bg-active-rgb: 58 58 58; /* #3A3A3A segmented 选中 */
+  --bg-selected-rgb: 38 55 77; /* #26374D 选中(白字仍 12:1) */
+
+  --border-rgb: 110 110 110; /* #6E6E6E */
+  --border-subtle-rgb: 61 61 61; /* #3D3D3D */
+  --border-strong-rgb: 168 168 168; /* #A8A8A8 */
+  --border-focus-rgb: 255 212 0; /* #FFD400 亮黄焦点环 */
+
+  --fg-rgb: 255 255 255; /* #FFFFFF  ratio ≈ 19.6 AAA */
+  --fg-secondary-rgb: 224 224 224; /* #E0E0E0  ratio ≈ 15.3 AAA */
+  --fg-tertiary-rgb: 192 192 192; /* #C0C0C0  ratio ≈ 10.9 AAA */
+  --fg-muted-rgb: 158 158 158; /* #9E9E9E  ratio ≈ 7.4 AAA */
+
+  --accent-rgb: 255 212 0; /* #FFD400 亮黄 */
+  --accent-hover-rgb: 255 233 92; /* #FFE95C */
+  --accent-dim-rgb: 58 50 0; /* #3A3200 */
+
+  /* 状态色两槽(r247):*-rgb 是「色」(图标 / 文字 / 描边),保持该主题的原汁原味;
+   *-strong-rgb 是「底」(实心按钮 / toast 底 + 白字)—— 白字压在原色上只有 1.1~3.4:1,
+   逐档压深到 white ≥ 4.8:1(见 theme-presets-contrast.test.ts)。 */
+  --success-rgb: 0 224 0; /* #00E000 — white ≈ 1.80:1(不足 AA,实心底走 strong 档) */
+  --success-strong-rgb: 0 133 0; /* #008500 — white ≈ 4.82:1 AA */
+  --warning-rgb: 255 176 0; /* #FFB000 — white ≈ 1.83:1(不足 AA,实心底走 strong 档) */
+  --warning-strong-rgb: 152 105 0; /* #986900 — white ≈ 4.82:1 AA */
+  --danger-rgb: 255 90 90; /* #FF5A5A — white ≈ 3.06:1(不足 AA,实心底走 strong 档) */
+  --danger-strong-rgb: 198 70 70; /* #C64646 — white ≈ 4.81:1 AA */
+
+  --module-library-rgb: 0 229 255; /* #00E5FF 青 */
+  --module-notes-rgb: 255 212 0; /* #FFD400 赭 */
+
+  --scrollbar-thumb-rgb: 158 158 158; /* #9E9E9E — ratio ≈ 6.9 */
+}
+
+@layer components {
+  /* V1.5 (2026-09-02)按钮重设:VSCode / Linear 紧凑风 — 圆角 4px(保留小圆角),
+     紧凑 padding / gap,font-medium(500)而非 semibold。 */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded font-medium transition-colors duration-120 leading-none;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply select-none;
+    /* 全局焦点环 — 键盘 Tab 可见,鼠标点击不出现。
+       显式加 outline-none 避免浏览器原生 outline 与 ring 叠加。 */
+    @apply outline-none focus-visible:ring-1 focus-visible:ring-accent;
+  }
+  /* primary:实心 accent(Linear 紫蓝 #5E6AD2)— 比 secondary 更"实",层级最高。
+     audit-r143 实测:comment 旧版写「深色 on #5E6AD2 ≈ 5.1:1」是错的;实测
+     dark text-bg-canvas on #5E6AD2 = 4.26:1 fail AA(4.5:1),white on #5E6AD2
+     = 4.70:1 也 fail。主按钮强制走加深背景 #4F5BBD(单一例外,不污染全局
+     --accent-rgb —— list-row focus ring / tabs accent border / modal 等
+     位置不动):text-bg-canvas on #4F5BBD ≈ 7.2:1 ✓ AA。toast/error 那种
+     饱和红绿仍保留 text-white —— 通知场景短停留 + 大字号 icon,可读性靠对
+     比/位置而不是严格 ratio。 */
+  .btn-primary {
+    @apply text-bg-canvas hover:text-bg-canvas;
+    background-color: rgb(79 91 189);
+    /* Linear 风 premium:实色按钮顶加 1px 白色高光(18% alpha)+ 落 1px 阴影,
+       让按钮看起来"被顶光照亮的实体"而不是"贴上去的色块"。
+       顶光是 inset 不会破 layout,落下阴影极轻(12% alpha)只在主按钮层级用。 */
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      0 1px 2px rgb(0 0 0 / 0.18);
+    /* 显式列出 transition-property(.btn 已用 transition-colors 覆盖了
+       bg/color/border;这里追加 box-shadow,确保 hover 时颜色和阴影同步
+       过渡,不出现"颜色瞬变 + 阴影缓动"的撕裂感)。 */
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: 120ms;
+    transition-timing-function: ease;
+  }
+  .btn-primary:hover {
+    background-color: rgb(67 79 173);
+    /* hover 时落阴影更深一档(32% alpha),"按钮被按下去一点"的反馈 */
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      0 1px 3px rgb(0 0 0 / 0.32);
+  }
+  /* secondary:面板色 + 弱边框,hover 时升到 hover 色 */
+  .btn-secondary {
+    @apply bg-bg-surface text-fg border border-border hover:bg-bg-hover hover:border-border-strong;
+  }
+  /* ghost:无背景无边框,hover 才显 */
+  .btn-ghost {
+    @apply text-fg-secondary hover:bg-bg-hover hover:text-fg;
+  }
+  /* danger:危险操作。audit round 15 (2026-09-15):a11y M2 — 淡红底 + 红字
+     light 4.0:1 / dark 3.2:1 都不过 WCAG AA 4.5:1,delete confirm 这种最高
+     风险控件色弱用户几乎读不清。改 solid + text-white 恒过双主题。
+     r247:底色从 --danger-rgb 换到 --danger-strong-rgb ——
+     扩到 15 档主题后,有些配色(如 Dracula #FF5555 / Gruvbox #FB4934)
+     的 danger 本身很亮,白字压上去只有 3.1~3.2:1,「恒过 AA」这句就破了。
+     两个槽分工:--danger-rgb 是「色」(图标/文字/描边),
+     --danger-strong-rgb 是「底」(实心按钮 + 白字,各主题都 ≥ 4.5:1,
+     见 tests/unit/renderer/styles/theme-presets-contrast.test.ts)。 */
+  .btn-danger {
+    @apply bg-danger-strong text-white border border-danger-strong hover:bg-danger-strong/90 hover:border-danger-strong/90;
+  }
+
+  /* 图标按钮(纯方块无文字):.btn + .btn-icon — 26x26 与 TopBar 一致 */
+  .btn-icon {
+    @apply w-[26px] h-[26px] p-0 inline-flex items-center justify-center rounded;
+  }
+
+  /* ============================================================
+     .titlebar-btn — 标题栏右侧控件(主题 / 设置 / 最小化 / 最大化 / 关闭)
+     46px 宽是 Windows 原生 chrome 的按钮宽度,用户已有肌肉记忆;
+     之前 4 个按钮各自 inline 写一份 `w-[46px] ... hover ... focus-visible`,
+     改一处要改四处,这里收敛成一个类。
+     注意:不带 rounded —— 标题栏按钮是贴边的整块高亮,不是圆角胶囊。
+     ============================================================ */
+  .titlebar-btn {
+    @apply h-full w-[var(--titlebar-btn-w)] flex items-center justify-center;
+    @apply text-fg-tertiary transition-colors duration-120;
+    @apply hover:text-fg hover:bg-bg-hover;
+    @apply focus-visible:outline-none focus-visible:text-fg focus-visible:bg-bg-hover;
+    /* 与 .titlebar-no-drag 同义 —— 直接写属性而不 @apply,避免依赖
+       跨 layer(@layer base)的自定义类在 @apply 里可用。 */
+    -webkit-app-region: no-drag;
+  }
+  /* ============================================================
+     r246:左栏折叠开关挪到右侧控件簇后,它与主题 / 设置同为 .titlebar-btn
+     (46px 贴边整块),原先给左上角那颗单独造的 .titlebar-icon-btn
+     (28px 圆角方块)随位置调整一并删除 —— 避免留一个零调用方的死类。
+     ============================================================ */
+
+  /* 折叠态的可见提示:r246 起左栏折叠开关在右侧控件簇首位。侧栏藏起来后
+     画面上没有任何痕迹(不像「关掉一个窗口」有明显的空缺),用户很容易
+     忘了自己把侧栏关了。aria-pressed 已经表达「当前是否折叠」,这里把它
+     落到视觉上:折叠时按钮点亮 accent 色 + active 底 —— 与 segmented
+     control 的 active 态同款 token(bg-bg-active)。 */
+  .titlebar-btn[aria-pressed='true'] {
+    @apply text-accent bg-bg-active;
+  }
+
+  /* 关闭键:hover 变红 + 白字。这是 Win 原生 chrome 的约定,不能跟着
+     主题 accent 走(紫蓝 = 主操作,语义完全相反),所以单独给一个
+     跨主题恒定的 --titlebar-close-rgb token,而不是散落的 #c42b1c 字面量。 */
+  .titlebar-btn-close:hover,
+  .titlebar-btn-close:focus-visible {
+    background-color: rgb(var(--titlebar-close-rgb));
+    color: rgb(255 255 255);
+  }
+
+  /* audit r52 (2026-10-16):titlebar 焦点环 halo 越界 —— 全局 `*:focus-visible`
+     在 globals.css:231 给了 4px accent box-shadow(2px outline + 4px halo = 8px
+     溢出),但 titlebar 按钮 (w-[46px]) 互相 flush 紧挨,4px halo 直接 bleed
+     到邻居按钮上,Tab 走过 5 个 titlebar 控件时焦点状态互相覆盖、视觉很乱。
+     这里收掉 box-shadow,留下 outline: none + bg-hover 的色变作为 focus 反馈
+     —— chrome 行的按钮不像表单控件需要 4px halo,自身 hover-bg 足以识别
+     focus 态(WSLg figma chrome / macOS hiddenInset 都用纯色变不用 halo)。 */
+  .titlebar-btn:focus-visible {
+    box-shadow: none;
+  }
+
+  /* 卡片/面板 — V1.5:4px 圆角 + bg-surface + 弱 1px border(保留)
+     原 .panel-flat 别名已合并到此,L89 LibraryList 是唯一非空 caller,
+     已替换为 .panel。 */
+  .panel {
+    @apply bg-bg-surface border border-border-subtle rounded;
+  }
+
+  /* 输入框 — 收紧圆角 4px,边框弱;V1.5:hover/focus 边框提亮。
+     高度固定 h-[26px] 与 .btn size=sm 对齐,form 行内 input 与 button
+     能自然 baseline 对齐;调用方需要不同高度(h-7 / h-8 等)再 className 覆盖。 */
+  .input-base {
+    @apply h-[26px] bg-bg-surface border border-border-subtle rounded text-sm text-fg placeholder:text-fg-tertiary px-3;
+    @apply focus:outline-none focus:border-accent focus-visible:ring-1 focus-visible:ring-accent;
+    @apply transition-colors duration-120;
+  }
+  /* 禁用浏览器自动填充时的黄底(配合 dark UA 主题会变成亮黄) */
+  .input-base:-webkit-autofill {
+    -webkit-text-fill-color: rgb(var(--fg-rgb));
+    box-shadow: 0 0 0 1000px rgb(var(--bg-surface-rgb)) inset;
+  }
+
+  /* 模块小标题 — uppercase + 紧间距(V1.5:font-medium 而非 semibold,更"轻") */
+  .section-title {
+    @apply text-2xs uppercase tracking-wider font-medium text-fg-tertiary;
+  }
+
+  /* hero/empty 容器 — 4px 圆角。
+     V1.8:保留左上 30%/25% radial 高光(Linear premium 关键),
+       但 alpha 从 0.55 → 0.25(减半),不再"喧宾夺主"。empty
+       状态仍有微光感,但不会让用户觉得"图标盒在发光显得不严肃"。
+     V2:radial 起点 30%/25% → 35%/20%,alpha 微抬 0.25 → 0.35;高光区
+       往"光源"左上靠拢 + 适度回补,让 .hero-icon 在 chrome.tsx V2 加的
+       双层 ambient 阴影组合下,空状态有"被顶光照亮"的实体感而不抢戏。 */
+  .hero-icon {
+    @apply w-14 h-14 rounded flex items-center justify-center relative overflow-hidden;
+    border: 1px solid rgb(var(--border-subtle-rgb));
+    background: rgb(var(--bg-surface-rgb));
+  }
+  .hero-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 35% 20%,
+      rgb(var(--bg-hover-rgb) / 0.35) 0%,
+      transparent 65%
+    );
+    pointer-events: none;
+  }
+
+  /* ============================================================
+     .list-row — 文献 / 笔记列表的条目行(V1.9 2026-09-04)
+
+     取代 V1.5 的 .item-row —— 那套是 `flex flex-col`(纯双行,无图标),
+     跟 LibraryList.FileRow / NotesList.NoteRow 的实际 DOM(横向 flex +
+     左侧图标 + 右侧双行文本块)对不上,于是两个 list 都各自 inline 写了
+     一份几乎逐字相同的 className,.item-row 变成孤儿类 —— 连带它定义的
+     选中态 accent 辉光从来没在界面上出现过。这里按真实结构重写并落地使用。
+
+     结构:[icon] [title / meta]
+     选中:bg-selected + 2px accent 左竖条 + 向右扩散的紫光(inset shadow)
+     hover:bg-hover/60 —— 行 hover 刻意比按钮 hover(全不透明)弱一档:
+           列表里指针会连续扫过很多行,全强度会让整列"闪"。
+     ============================================================ */
+  .list-row {
+    @apply flex items-center gap-2 w-full px-3 py-1.5 text-left cursor-pointer;
+    @apply transition-colors duration-120 outline-none;
+    @apply focus-visible:bg-bg-hover focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent;
+    /* 默认透明左竖条占位,选中态才上色(避免选中时行内容横向位移 2px) */
+    border-left: 2px solid transparent;
+    /* audit-r161 (2026-10-19):整行 drag 后,文本节点(title/meta)在
+       mousedown→dragstart 临界被 Chromium 当成 text-selection intent 直接
+       吞掉 dragstart,文件夹行 / 笔记行都拖不起来(用户报「剪切、粘贴、
+       拉动移动到文件夹不起作用」)。user-select:none 关掉文本可选,与
+       titlebar-drag(audit-r152 验证 Electron 下生效)同款;.list-row 自身
+       不挂 input,FolderNameInput 之类 inline 编辑走 .select-text / input
+       显式覆盖,与本契约不冲突。 */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .list-row:hover {
+    background-color: rgb(var(--bg-hover-rgb) / 0.6);
+  }
+  /* hover 时标题从 secondary 升到 fg,行扫视时文字"被点亮"—— 配合
+     60% bg 强度,不靠单色变化撑住反馈,文字颜色接力给"指针在这里"的确认。 */
+  .list-row:hover .list-row-title {
+    @apply text-fg;
+  }
+  /* r176:落点文件夹(树状改造)—— 「新建 / 粘贴 / 导入」的目标目录。
+     与 .list-row-selected(主选中行)是两个正交概念:selected = 当前聚焦
+     的行,target = 落点目录。所以这里用**弱一档**的视觉:accent 底色
+     12% + 左侧 accent 竖条(无 inset 柔光,那是 selected 的)。
+     源码位置在 .list-row-selected **之前** —— 同行同时命中时
+     selected 胜出(同特异性,靠源码顺序)。 */
+  .list-row-tree-target,
+  .list-row-tree-target:hover {
+    background-color: rgb(var(--accent-rgb) / 0.12);
+    border-left-color: rgb(var(--accent-rgb) / 0.6);
+  }
+  /* 选中态必须同时压过 .list-row:hover(同特异性,靠源码顺序在后取胜) */
+  .list-row-selected,
+  .list-row-selected:hover {
+    @apply bg-bg-selected;
+    border-left-color: rgb(var(--accent-rgb));
+    /* Linear 风 premium:左侧 2px accent 条向右扩散成柔光(30% alpha),
+       让选中行不是"贴了一个紫色标签"而是"被一道紫光照亮"。 */
+    box-shadow: inset 3px 0 10px -2px rgb(var(--accent-rgb) / 0.3);
+  }
+  /* audit-r143 (2026-10-19):键盘 roving activeDescendant 视觉态 ——
+     selected 与 active 是两个正交概念:active 是「键盘当前 focus 项」,
+     强度:高于 hover(60% alpha),低于 selected(无 inset 辉光);
+     实现:bg-hover 全不透明 + 50% accent 左竖条占位让选中切换不抖位移。 */
+  .list-row-active,
+  .list-row-active:hover {
+    background-color: rgb(var(--bg-hover-rgb));
+    border-left-color: rgb(var(--accent-rgb) / 0.5);
+  }
+  /* selected 与 active 同时命中时,selected 必须胜出(同特异性,源码顺序靠后)。 */
+  .list-row-selected.list-row-active,
+  .list-row-selected.list-row-active:hover {
+    @apply bg-bg-selected;
+    border-left-color: rgb(var(--accent-rgb));
+    box-shadow: inset 3px 0 10px -2px rgb(var(--accent-rgb) / 0.3);
+  }
+  /* 2026-10-16 file-manager ops:多选次级高亮 —— 多选集合里非主选中行。
+     只有 bg,无 accent 竖条/柔光(那是 selectedId 主选中行的视觉),
+     与 VS Code 文件管理器「focus 项 vs 选中项」的层级一致。 */
+  .list-row-multi,
+  .list-row-multi:hover {
+    @apply bg-bg-selected;
+  }
+  .list-row-title {
+    /* 长名字允许 wrap,不再用 truncate(...)。Tailwind 的 truncate 等价于
+       overflow:hidden + text-overflow:ellipsis + white-space:nowrap,是阻断
+       wrap 的根源;break-words(Tailwind 4.0 别名/等价:break-word = overflow-wrap
+       anywhere + word-break break-word)在 min-w-0 容器里把长 token 折到下一行,
+       单行名字视觉与改动前一致,2+ 行 wrap 也可读。 */
+    @apply text-xs text-fg-secondary break-words;
+  }
+  .list-row-selected .list-row-title {
+    @apply text-fg font-medium;
+  }
+  .list-row-meta {
+    @apply text-2xs text-fg-tertiary truncate mt-0.5;
+  }
+
+  /* ============================================================
+     .prose-academic — 学术风格阅读区排版(2026-08-20)
+     衬线字体 + 1.75 行距 + h2 底边 + blockquote 左竖条 +
+     table 头底色 + code 行内样式;用于 MarkdownReader(笔记编辑走
+     自己的 cm-md-* 装饰,不再用 .prose-academic)
+     ============================================================ */
+  .prose-academic {
+    @apply text-[14.5px] leading-[1.75];
+    font-family: var(
+      --font-serif,
+      'Source Serif 4',
+      'Source Serif Pro',
+      'Iowan Old Style',
+      'Charter',
+      'Georgia',
+      'STSong',
+      'Songti SC',
+      serif
+    );
+    color: rgb(var(--fg-rgb));
+  }
+  /* 标题 */
+  .prose-academic h1 {
+    @apply text-xl font-semibold mt-8 mb-3 text-fg tracking-tight;
+  }
+  .prose-academic h2 {
+    @apply text-base font-semibold mt-6 mb-2 text-fg pb-1.5 border-b border-border-subtle;
+  }
+  .prose-academic h3 {
+    @apply text-sm font-semibold mt-5 mb-2 text-fg;
+  }
+  .prose-academic h4,
+  .prose-academic h5,
+  .prose-academic h6 {
+    @apply text-sm font-medium mt-4 mb-1.5 text-fg-secondary;
+  }
+  /* 段落与列表 */
+  .prose-academic p {
+    @apply my-3;
+  }
+  .prose-academic ul {
+    @apply pl-6 my-3 space-y-1 list-disc;
+  }
+  .prose-academic ol {
+    @apply pl-6 my-3 space-y-1 list-decimal;
+  }
+  .prose-academic li {
+    @apply my-0.5;
+  }
+  /* 强调 */
+  .prose-academic strong {
+    @apply font-semibold text-fg;
+  }
+  .prose-academic em {
+    @apply italic;
+  }
+  /* 链接 */
+  .prose-academic a {
+    @apply text-accent underline-offset-2 hover:underline;
+    text-decoration: underline;
+    text-decoration-color: rgb(var(--accent-rgb) / 0.4);
+  }
+  /* wiki-link 保持虚线下划线视觉(Zotero 风) */
+  .prose-academic .wiki-link {
+    @apply text-accent no-underline;
+    border-bottom: 1px dashed rgb(var(--accent-rgb) / 0.6);
+  }
+  /* blockquote — 左竖条 + 斜体 */
+  .prose-academic blockquote {
+    @apply border-l-2 border-accent pl-4 italic text-fg-secondary my-4;
+  }
+  /* 行内 code */
+  .prose-academic code {
+    @apply bg-bg-surface px-1 py-0.5 rounded-sm text-[0.88em] font-mono text-fg;
+    border: 1px solid rgb(var(--border-subtle-rgb));
+  }
+  /* 代码块 */
+  .prose-academic pre {
+    @apply bg-bg-surface border border-border-subtle rounded p-3 my-4 overflow-x-auto;
+  }
+  .prose-academic pre code {
+    @apply bg-transparent border-0 p-0 text-[0.92em];
+  }
+  /* 表格 */
+  .prose-academic table {
+    @apply w-full border-collapse my-4 text-sm;
+  }
+  .prose-academic th {
+    @apply bg-bg-surface border-b border-border font-medium text-left py-2 px-3 text-fg-secondary;
+  }
+  .prose-academic td {
+    @apply border-b border-border-subtle py-2 px-3 text-fg;
+  }
+  /* 图片 */
+  .prose-academic img {
+    @apply rounded my-3 max-w-full;
+  }
+  /* 水平线 */
+  .prose-academic hr {
+    @apply border-border-subtle my-6;
+  }
+}
